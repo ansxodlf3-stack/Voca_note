@@ -47,7 +47,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
  <div class="card">
   <div class="stats"><div class="stat"><strong id="total">0</strong><span>저장된 단어</span></div><div class="stat"><strong id="known">0</strong><span>암기 완료</span></div></div>
   <div class="progress"><i id="progress"></i></div>
-  <p class="muted">사진을 올리면 영어 글자를 읽고 파란색 표시 주변의 단어를 찾아줘요. 자동 추출 결과는 사진과 비교해 확인한 뒤 저장하세요.</p>
+  <p class="muted">사진을 올리면 영어 글자를 읽고 단어를 둘러싼 파란색 동그라미만 엄격하게 찾도록 설계했어요. 자동 추출 결과는 사진과 비교해 확인한 뒤 저장하세요.</p>
   <button class="btn" onclick="showTab('upload')">+ 모의고사 사진 추가</button>
  </div>
  <div class="card"><h2>최근 추가한 단어</h2><div id="recent" class="muted">아직 저장된 단어가 없어요.</div></div>
@@ -68,7 +68,7 @@ hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 
 <section id="vocab" class="panel">
  <div class="card">
-  <div class="row"><h2 class="grow">내 단어장</h2><button class="btn ghost" onclick="exportWords()">내보내기</button></div>
+  <div class="row"><h2 class="grow">내 단어장</h2><button class="btn ghost" onclick="translateMissing()">뜻 자동 채우기</button><button class="btn ghost" onclick="exportWords()">내보내기</button></div>
   <input id="search" placeholder="단어 검색..." oninput="renderWords()">
   <div id="wordList"></div>
  </div>
@@ -98,16 +98,57 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 $('imageInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;if(imageUrl)URL.revokeObjectURL(imageUrl);imageUrl=URL.createObjectURL(f);$('preview').src=imageUrl;$('preview').classList.remove('hidden');$('scanBtn').disabled=false;$('scanStatus').textContent='사진이 준비됐어요.';$('results').innerHTML=''});
 function clearUpload(){$('imageInput').value='';$('preview').classList.add('hidden');$('scanBtn').disabled=true;$('scanStatus').textContent='';$('results').innerHTML='';if(imageUrl)URL.revokeObjectURL(imageUrl);imageUrl=null}
 function isBlue(data,i){const r=data[i],g=data[i+1],b=data[i+2];return b>75&&b>r*1.28&&b>g*1.08&&g>r*1.05}
-function blueNear(ctx,box,scaleX,scaleY){const d=ctx.getImageData(0,0,ctx.canvas.width,ctx.canvas.height),a=d.data;let count=0;const x1=Math.max(0,Math.floor(box.x0*scaleX-13)),x2=Math.min(d.width-1,Math.ceil(box.x1*scaleX+13)),y1=Math.max(0,Math.floor(box.y0*scaleY-13)),y2=Math.min(d.height-1,Math.ceil(box.y1*scaleY+13));const ix1=Math.floor(box.x0*scaleX),ix2=Math.ceil(box.x1*scaleX),iy1=Math.floor(box.y0*scaleY),iy2=Math.ceil(box.y1*scaleY);
-for(let y=y1;y<=y2;y++)for(let x=x1;x<=x2;x++){if(x>=ix1+2&&x<=ix2-2&&y>=iy1+2&&y<=iy2-2)continue;const i=(y*d.width+x)*4;if(isBlue(a,i))count++}return count}
+function blueCircleAround(ctx,box){
+  // Strict mode: accept only a blue, nearly closed oval surrounding the OCR word.
+  // Black ink and ordinary blue underlines do not satisfy the angular-coverage test.
+  const d=ctx.getImageData(0,0,ctx.canvas.width,ctx.canvas.height),a=d.data;
+  const cx=(box.x0+box.x1)/2, cy=(box.y0+box.y1)/2;
+  const ww=Math.max(8,box.x1-box.x0), hh=Math.max(8,box.y1-box.y0);
+  const blueAt=(x,y)=>{
+    const ix=Math.round(x),iy=Math.round(y);
+    if(ix<0||iy<0||ix>=d.width||iy>=d.height)return false;
+    return isBlue(a,(iy*d.width+ix)*4);
+  };
+  let best=0;
+  // Hand-drawn circles may be slightly wider/taller or off-centre.
+  for(const sx of [0.58,0.72,0.88]){
+    for(const sy of [0.95,1.18,1.42]){
+      for(const ox of [-0.08,0,0.08]){
+        for(const oy of [-0.12,0,0.12]){
+          const rx=ww*sx+4, ry=hh*sy+3, sectors=32;
+          let hit=0;
+          for(let k=0;k<sectors;k++){
+            const ang=2*Math.PI*k/sectors;
+            let found=false;
+            // Search a small band around the expected ellipse outline.
+            for(const radial of [0.88,1.0,1.12]){
+              for(const jitter of [-2,0,2]){
+                const x=cx+ox*ww+Math.cos(ang)*(rx*radial)+jitter;
+                const y=cy+oy*hh+Math.sin(ang)*(ry*radial)+jitter;
+                if(blueAt(x,y)){found=true;break}
+              }
+              if(found)break;
+            }
+            if(found)hit++;
+          }
+          best=Math.max(best,hit/sectors);
+        }
+      }
+    }
+  }
+  return best>=0.42;
+}
 $('scanBtn').onclick=async()=>{if(!imageUrl)return;if(!window.Tesseract){$('scanStatus').textContent='OCR 엔진을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.';return}
 $('scanBtn').disabled=true;$('scanStatus').textContent='영어 글자를 읽는 중... 처음에는 잠시 걸릴 수 있어요.';
 try{const img=new Image();img.src=imageUrl;await img.decode();const max=1800,scale=Math.min(1,max/img.width);const c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0,c.width,c.height);
 const worker=await Tesseract.createWorker('eng');const result=await worker.recognize(c);await worker.terminate();const found=[];const data=result.data.words||[];
-for(const w of data){const t=w.text.trim().replace(/^[^A-Za-z'-]+|[^A-Za-z'-]+$/g,'');if(!/[A-Za-z]{2}/.test(t))continue;const blue=blueNear(ctx,w.bbox,1,1);if(blue>=7)found.push({word:t,meaning:'',source:'모의고사 사진',known:false,blue})}
-ocrWords=found;$('scanStatus').textContent=`글자 ${data.length}개를 읽었어요. 파란 표시 주변에서 ${found.length}개를 찾았어요.\n자동 인식은 완벽하지 않으니 사진과 대조해 주세요.`;
-renderCandidates();
+for(const w of data){const t=w.text.trim().replace(/^[^A-Za-z'-]+|[^A-Za-z'-]+$/g,'');if(!/[A-Za-z]{2}/.test(t))continue;if(blueCircleAround(ctx,w.bbox))found.push({word:t,meaning:'',source:'모의고사 사진',known:false})}
+ocrWords=found;$('scanStatus').textContent=`글자 ${data.length}개를 읽었어요. 파란색 동그라미로 판단된 단어 ${found.length}개를 찾았어요.\n자동 인식은 완벽하지 않으니 사진과 대조해 주세요.`;
+renderCandidates();translateCandidates();
 }catch(err){$('scanStatus').textContent='인식 중 문제가 생겼어요: '+err.message}finally{$('scanBtn').disabled=false}};
+async function translateKo(text){try{const url='https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair=en|ko';const r=await fetch(url);if(!r.ok)throw new Error('번역 서버 응답 오류');const j=await r.json();const t=j.responseData?.translatedText||'';return t.replace(/&#39;/g,"'").replace(/&quot;/g,'\"').replace(/&amp;/g,'&')}catch(e){return ''}}
+async function translateCandidates(){for(let i=0;i<ocrWords.length;i++){if(!ocrWords[i].meaning){const m=await translateKo(ocrWords[i].word);if(m)ocrWords[i].meaning=m;const input=$('cm'+i);if(input&&m)input.value=m;}await new Promise(r=>setTimeout(r,350));}}
+async function translateMissing(){let done=0;for(let i=0;i<words.length;i++){if(!words[i].meaning){const m=await translateKo(words[i].word);if(m){words[i].meaning=m;done++;}await new Promise(r=>setTimeout(r,350));}}localStorage.setItem(STORE,JSON.stringify(words));renderAll();alert(done+'개 단어의 뜻을 자동으로 채웠어요. 문맥에 맞는지 확인해 주세요.')}
 function renderCandidates(){const box=$('results');if(!ocrWords.length){box.innerHTML='<p class="muted">자동으로 찾은 단어가 없어요. 아래에서 단어를 직접 추가할 수 있어요.</p>';addManual();return}
 box.innerHTML='<hr><h2>추출 결과 확인</h2><p class="muted">필요 없는 단어는 삭제하고, 빠진 단어는 직접 추가하세요.</p>'+ocrWords.map((w,i)=>`<div class="word" id="cand${i}"><div class="wordtop"><strong>${esc(w.word)}</strong><span class="tag">파란색 표시 후보</span></div><div class="editgrid"><label>단어<input id="cw${i}" value="${esc(w.word)}"></label><label>뜻<input id="cm${i}" placeholder="한국어 뜻 입력"></label></div><div class="row" style="margin-top:8px"><button class="btn ghost" onclick="removeCandidate(${i})">제외</button></div></div>`).join('')+`<button class="btn" onclick="saveCandidates()">선택 단어 저장</button><div id="manual"></div>`;addManual()}
 function removeCandidate(i){ocrWords.splice(i,1);renderCandidates()}
