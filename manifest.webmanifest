@@ -1,0 +1,10 @@
+{
+  "name": "Vocab Note - 수능 영어 단어장",
+  "short_name": "Vocab Note",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f8fc",
+  "theme_color": "#172554",
+  "description": "파란색 동그라미 친 영어 단어를 모으는 단어장",
+  "icons": [{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
