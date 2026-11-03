@@ -3,566 +3,445 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#5267d8">
-<title>나만의 영어 단어장</title>
-
+<title>VOCAB NOTE</title>
 <style>
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-  background: #f4f6fc;
-  color: #222;
-}
-
-.container {
-  max-width: 650px;
-  margin: auto;
-}
-
-h1 {
-  text-align: center;
-  color: #4055bd;
-}
-
-.box {
-  background: white;
-  padding: 18px;
-  margin: 15px 0;
-  border-radius: 15px;
-  box-shadow: 0 3px 12px #00000010;
-}
-
-button {
-  border: 0;
-  border-radius: 9px;
-  padding: 12px 16px;
-  background: #5267d8;
-  color: white;
-  font-size: 15px;
-  cursor: pointer;
-  margin: 4px 2px;
-}
-
-button:disabled {
-  background: #aaa;
-}
-
-input[type="file"] {
-  width: 100%;
-  margin: 12px 0;
-}
-
-input[type="text"] {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 16px;
-  margin: 5px 0;
-}
-
-#preview {
-  width: 100%;
-  border-radius: 10px;
-  margin-top: 10px;
-  display: none;
-}
-
-.word {
-  padding: 12px;
-  border-bottom: 1px solid #eee;
-}
-
-.word strong {
-  font-size: 19px;
-  color: #4055bd;
-}
-
-.meaning {
-  color: #555;
-  margin: 7px 0;
-}
-
-.small {
-  font-size: 13px;
-  color: #888;
-}
-
-#status {
-  white-space: pre-line;
-  line-height: 1.6;
-  color: #4055bd;
-}
-
-.flashcard {
-  text-align: center;
-  padding: 25px 10px;
-}
-
-.flashcard .english {
-  font-size: 30px;
-  font-weight: bold;
-  color: #4055bd;
-  margin: 20px;
-}
-
-.hidden {
-  display: none;
-}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f5fb;color:#222;font-family:Arial,sans-serif}
+header{background:#17264f;color:white;padding:24px}
+header h1{margin:0;font-size:25px}
+header p{margin-bottom:0;color:#dce4ff}
+main{max-width:750px;margin:20px auto;padding:0 14px}
+.box{background:white;padding:20px;border-radius:16px;margin-bottom:16px}
+h2{font-size:20px}
+button{background:#2863dc;color:white;border:0;padding:12px 16px;border-radius:10px;margin:5px 2px;font-size:15px}
+button:disabled{opacity:.5}
+input{width:100%;padding:13px;border:1px solid #ddd;border-radius:9px;margin:6px 0;font-size:16px}
+#preview{width:100%;margin-top:12px;border-radius:10px;display:none}
+#status{white-space:pre-line;color:#4055a0;line-height:1.7;margin-top:12px}
+.word{border-bottom:1px solid #eee;padding:13px 0}
+.word strong{font-size:19px;color:#244eaa}
+.small{color:#777;font-size:13px}
+nav{position:sticky;bottom:0;background:white;display:flex;justify-content:space-around;padding:10px 2px;border-top:1px solid #ddd}
+nav button{flex:1;background:#edf2ff;color:#17264f;margin:2px}
+.card{text-align:center;padding:25px}
+#cardWord{font-size:32px;font-weight:bold;color:#244eaa;margin:25px}
 </style>
 </head>
-
 <body>
-<div class="container">
 
-<h1>📘 나만의 영어 단어장</h1>
+<header>
+<h1>VOCAB NOTE</h1>
+<p>파란 동그라미 영어 단어장</p>
+</header>
 
-<div class="box">
-  <h3>📷 시험지 사진 올리기</h3>
-  <p class="small">
-    파란색 동그라미로 표시한 영어 단어를 찾아볼게요.
-  </p>
+<main>
 
-  <input type="file" id="photo" accept="image/*">
+<section class="box" id="photoSection">
+<h2>📷 시험지 사진 올리기</h2>
+<p class="small">파란색 동그라미로 표시한 영어 단어를 찾아볼게요.</p>
+<input type="file" id="photo" accept="image/*">
+<img id="preview">
+<button id="scanButton" onclick="scanPhoto()" disabled>파란 동그라미 단어 찾기</button>
+<div id="status"></div>
+<div id="results"></div>
+</section>
 
-  <img id="preview" alt="사진 미리보기">
+<section class="box">
+<h2>✏️ 직접 단어 추가</h2>
+<input id="manualWord" placeholder="영어 단어">
+<input id="manualMeaning" placeholder="한국어 뜻">
+<button onclick="addManual()">직접 저장</button>
+</section>
 
-  <button id="startButton" onclick="startOCR()" disabled>
-    파란색 동그라미 단어 찾기
-  </button>
+<section class="box" id="vocabSection">
+<h2>📚 내 단어장</h2>
+<p id="count">저장된 단어 0개</p>
+<div id="savedWords"></div>
+<button onclick="exportWords()">단어장 파일로 저장</button>
+</section>
 
-  <div id="status"></div>
+<section class="box">
+<h2>🧠 단어 시험</h2>
+<div class="card">
+<p id="cardNumber" class="small"></p>
+<div id="cardWord">단어를 저장해 주세요.</div>
+<div id="cardMeaning"></div>
+<button onclick="revealMeaning()">뜻 보기</button>
+<button onclick="nextCard()">다음 단어</button>
 </div>
+</section>
 
-<div class="box">
-  <h3>📝 찾은 단어</h3>
-  <p class="small">
-    단어와 뜻을 확인하고 틀린 부분은 직접 수정한 뒤 저장하세요.
-  </p>
-  <div id="results">아직 찾은 단어가 없습니다.</div>
-</div>
+</main>
 
-<div class="box">
-  <h3>📚 내 단어장</h3>
-  <p id="count">저장된 단어 0개</p>
-  <button onclick="showFlashcard()">단어 암기하기</button>
-  <button onclick="exportWords()">단어장 내보내기</button>
-  <div id="savedWords"></div>
-</div>
-
-<div class="box hidden" id="studyBox">
-  <h3>🧠 단어 암기</h3>
-  <div class="flashcard">
-    <div id="cardNumber" class="small"></div>
-    <div id="english" class="english"></div>
-    <div id="korean"></div>
-    <button onclick="showMeaning()">뜻 보기</button>
-    <button onclick="nextCard()">다음 단어</button>
-  </div>
-</div>
-
-</div>
+<nav>
+<button onclick="goTo('photoSection')">사진</button>
+<button onclick="goTo('vocabSection')">단어장</button>
+<button onclick="goTo('cardWord')">시험</button>
+</nav>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <script>
-let selectedImage = null;
-let candidates = [];
-let saved = JSON.parse(localStorage.getItem("myVocabulary") || "[]");
-let cardIndex = 0;
+let imageFile=null;
+let vocabulary=JSON.parse(localStorage.getItem("vocabNote")||"[]");
+let cardIndex=0;
 
-// 사진 선택
-document.getElementById("photo").addEventListener("change", function(e) {
-  const file = e.target.files[0];
-  if (!file) return;
+const photo=document.getElementById("photo");
 
-  selectedImage = file;
+photo.addEventListener("change",function(){
+  imageFile=this.files[0];
+  if(!imageFile)return;
 
-  const preview = document.getElementById("preview");
-  preview.src = URL.createObjectURL(file);
-  preview.style.display = "block";
+  const preview=document.getElementById("preview");
+  preview.src=URL.createObjectURL(imageFile);
+  preview.style.display="block";
 
-  document.getElementById("startButton").disabled = false;
-  document.getElementById("status").textContent = "사진을 준비했어요.";
+  document.getElementById("scanButton").disabled=false;
+  document.getElementById("status").textContent="사진을 준비했어요.";
 });
 
-// 파란색인지 확인
-function isBlue(r, g, b) {
-  return (
-    b > 65 &&
-    b > r * 1.15 &&
-    b > g * 1.03 &&
-    b - r > 22
-  );
+// 파란색 판별
+function isBlue(r,g,b){
+  return b>45 && b-r>8 && b>=g*0.98;
 }
 
-// 특정 위치 주변에 파란색이 있는지 확인
-function hasBlue(data, width, height, x, y) {
-  x = Math.round(x);
-  y = Math.round(y);
+// 이미지에서 파란색 픽셀 확인
+function blueAt(data,width,height,x,y){
+  x=Math.round(x);
+  y=Math.round(y);
 
-  for (let dy = -2; dy <= 2; dy++) {
-    for (let dx = -2; dx <= 2; dx++) {
-      const px = x + dx;
-      const py = y + dy;
+  if(x<0||y<0||x>=width||y>=height)return false;
 
-      if (px < 0 || py < 0 || px >= width || py >= height) {
-        continue;
-      }
+  const i=(y*width+x)*4;
+  return isBlue(data[i],data[i+1],data[i+2]);
+}
 
-      const i = (py * width + px) * 4;
-
-      if (isBlue(data[i], data[i + 1], data[i + 2])) {
-        return true;
-      }
+// 주변 픽셀까지 확인
+function nearbyBlue(data,width,height,x,y){
+  for(let dy=-2;dy<=2;dy++){
+    for(let dx=-2;dx<=2;dx++){
+      if(blueAt(data,width,height,x+dx,y+dy))return true;
     }
   }
-
   return false;
 }
 
-// 파란색 동그라미가 단어 주변에 있는지 확인
-function findBlueWords(ctx, ocrWords) {
-  const canvas = ctx.canvas;
-  const width = canvas.width;
-  const height = canvas.height;
-  const data = ctx.getImageData(0, 0, width, height).data;
+// 단어 주변 동그라미 찾기
+function findBlueWords(ctx,words){
+  const canvas=ctx.canvas;
+  const W=canvas.width;
+  const H=canvas.height;
+  const data=ctx.getImageData(0,0,W,H).data;
+  const found=[];
 
-  const found = [];
+  for(const word of words){
+    const text=word.text.trim();
 
-  for (const word of ocrWords) {
-    const text = word.text.trim();
+    if(!/^[a-zA-Z][a-zA-Z'-]*$/.test(text))continue;
 
-    if (!/^[a-zA-Z][a-zA-Z'-]*$/.test(text)) continue;
+    const b=word.bbox;
+    const x=(b.x0+b.x1)/2;
+    const y=(b.y0+b.y1)/2;
+    const ww=b.x1-b.x0;
+    const wh=b.y1-b.y0;
 
-    const b = word.bbox;
+    if(ww<8||wh<5)continue;
 
-    const x = (b.x0 + b.x1) / 2;
-    const y = (b.y0 + b.y1) / 2;
-    const ww = b.x1 - b.x0;
-    const wh = b.y1 - b.y0;
+    let matched=false;
 
-    if (ww < 8 || wh < 5) continue;
+    for(const fx of [0.7,0.9,1.1,1.3,1.5,1.7]){
+      for(const fy of [1.3,1.6,1.9,2.2,2.5,2.8]){
+        const rx=ww*fx;
+        const ry=wh*fy;
+        let hits=0;
+        const quadrants=[false,false,false,false];
 
-    let bestScore = 0;
+        for(let i=0;i<120;i++){
+          const a=2*Math.PI*i/120;
+          const px=x+rx*Math.cos(a);
+          const py=y+ry*Math.sin(a);
 
-    // 글자 주변의 여러 크기에서 동그라미 검사
-    for (const fx of [0.8, 1.0, 1.2, 1.4, 1.6]) {
-      for (const fy of [1.3, 1.6, 1.9, 2.2, 2.5]) {
+          if(nearbyBlue(data,W,H,px,py)){
+            hits++;
 
-        const rx = ww * fx;
-        const ry = wh * fy;
-
-        const sectors = Array(12).fill(0);
-
-        for (let i = 0; i < 144; i++) {
-          const angle = 2 * Math.PI * i / 144;
-
-          const px = x + rx * Math.cos(angle);
-          const py = y + ry * Math.sin(angle);
-
-          if (hasBlue(data, width, height, px, py)) {
-            sectors[Math.floor(i / 12)]++;
+            const right=Math.cos(a)>=0;
+            const bottom=Math.sin(a)>=0;
+            const q=bottom?(right?1:2):(right?0:3);
+            quadrants[q]=true;
           }
         }
 
-        const occupied = sectors.filter(v => v > 0).length;
+        const covered=quadrants.filter(Boolean).length;
 
-        // 원의 위, 아래, 왼쪽, 오른쪽에 표시가 있는지 확인
-        const top = sectors[0] + sectors[1] + sectors[11] > 0;
-        const right = sectors[2] + sectors[3] + sectors[4] > 0;
-        const bottom = sectors[5] + sectors[6] + sectors[7] > 0;
-        const left = sectors[8] + sectors[9] + sectors[10] > 0;
-
-        if (occupied >= 7 && top && right && bottom && left) {
-          bestScore = Math.max(bestScore, occupied / 12);
+        if(hits>=8&&covered>=3){
+          matched=true;
+          break;
         }
       }
+      if(matched)break;
     }
 
-    if (bestScore >= 7 / 12) {
-      found.push(text);
-    }
+    if(matched)found.push(text);
   }
 
   return [...new Set(found)];
 }
 
 // 사진 글자 인식
-async function startOCR() {
-  if (!selectedImage) return;
+async function scanPhoto(){
+  if(!imageFile)return;
 
-  const button = document.getElementById("startButton");
-  const status = document.getElementById("status");
+  const button=document.getElementById("scanButton");
+  const status=document.getElementById("status");
 
-  button.disabled = true;
-  status.textContent = "사진을 읽고 있어요. 잠시 기다려 주세요.";
+  button.disabled=true;
+  status.textContent="사진을 읽고 있어요. 잠시 기다려 주세요.";
 
-  try {
-    const image = new Image();
-    image.src = URL.createObjectURL(selectedImage);
+  try{
+    const img=new Image();
+    img.src=URL.createObjectURL(imageFile);
 
-    await new Promise((resolve, reject) => {
-      image.onload = resolve;
-      image.onerror = reject;
+    await new Promise((resolve,reject)=>{
+      img.onload=resolve;
+      img.onerror=reject;
     });
 
-    const canvas = document.createElement("canvas");
+    const scale=Math.min(1,2200/img.width);
+    const canvas=document.createElement("canvas");
 
-    const scale = Math.min(1, 2200 / image.width);
+    canvas.width=Math.round(img.width*scale);
+    canvas.height=Math.round(img.height*scale);
 
-    canvas.width = Math.round(image.width * scale);
-    canvas.height = Math.round(image.height * scale);
+    const ctx=canvas.getContext("2d",{willReadFrequently:true});
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
 
-    const ctx = canvas.getContext("2d", {
-      willReadFrequently: true
-    });
+    status.textContent="영어 글자를 인식하고 있어요.";
 
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    status.textContent = "영어 글자를 인식하고 있어요...";
-
-    const worker = await Tesseract.createWorker("eng");
-
-    const result = await worker.recognize(canvas);
-
+    const worker=await Tesseract.createWorker("eng");
+    const result=await worker.recognize(canvas);
     await worker.terminate();
 
-    const words = result.data.words.filter(w =>
+    status.textContent="파란색 동그라미를 찾고 있어요.";
+
+    const words=result.data.words.filter(w=>
       /^[a-zA-Z][a-zA-Z'-]*$/.test(w.text.trim())
     );
 
-    status.textContent = "파란색 동그라미를 확인하고 있어요...";
+    const found=findBlueWords(ctx,words);
 
-    candidates = findBlueWords(ctx, words);
-
-    if (candidates.length === 0) {
-      status.textContent =
-        "파란색 동그라미 단어를 찾지 못했어요.\n" +
-        "사진이 선명한지, 동그라미가 파란색인지 확인해 주세요.\n" +
-        "인식이 안 되면 단어를 직접 추가할 수도 있어요.";
-    } else {
-      status.textContent = candidates.length + "개 단어를 찾았어요!";
+    if(found.length===0){
+      status.textContent=
+        "동그라미 단어를 자동으로 찾지 못했어요.\n"+
+        "아래에서 단어를 직접 추가할 수 있어요.";
+    }else{
+      status.textContent=found.length+"개 단어를 찾았어요.";
     }
 
-    await showCandidates();
+    await displayCandidates(found);
 
-  } catch (error) {
-    console.error(error);
-    status.textContent =
-      "사진을 읽는 중 문제가 생겼어요. 인터넷 연결을 확인하고 다시 시도해 주세요.";
+  }catch(e){
+    console.error(e);
+    status.textContent="오류가 발생했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.";
   }
 
-  button.disabled = false;
+  button.disabled=false;
 }
 
-// 단어 뜻 번역
-async function translate(word) {
-  try {
-    const url =
-      "https://api.mymemory.translated.net/get?q=" +
-      encodeURIComponent(word) +
-      "&langpair=en|ko";
+// 무료 번역
+async function translateWord(word){
+  try{
+    const url="https://api.mymemory.translated.net/get?q="+
+      encodeURIComponent(word)+"&langpair=en|ko";
 
-    const response = await fetch(url);
-    const data = await response.json();
+    const response=await fetch(url);
+    const data=await response.json();
 
-    return data.responseData.translatedText || "";
-  } catch (error) {
+    return data.responseData.translatedText||"";
+  }catch(e){
     return "";
   }
 }
 
-// 찾은 단어 화면에 표시
-async function showCandidates() {
-  const area = document.getElementById("results");
-  area.innerHTML = "";
+// 찾은 단어 표시
+async function displayCandidates(words){
+  const area=document.getElementById("results");
+  area.innerHTML="";
 
-  if (candidates.length === 0) {
-    area.innerHTML = "찾은 단어가 없습니다.";
-    return;
-  }
+  for(const word of words){
+    const div=document.createElement("div");
+    div.className="word";
 
-  for (const word of candidates) {
-    const div = document.createElement("div");
-    div.className = "word";
+    const title=document.createElement("strong");
+    title.textContent=word;
 
-    div.innerHTML = `
-      <strong></strong>
-      <input type="text" placeholder="한국어 뜻">
-      <button>단어장에 저장</button>
-      <button>제외</button>
-    `;
+    const meaning=document.createElement("input");
+    meaning.placeholder="한국어 뜻 가져오는 중...";
 
-    div.querySelector("strong").textContent = word;
+    const save=document.createElement("button");
+    save.textContent="단어장에 저장";
 
-    const meaningInput = div.querySelector("input");
-    const saveButton = div.querySelectorAll("button")[0];
-    const removeButton = div.querySelectorAll("button")[1];
+    const remove=document.createElement("button");
+    remove.textContent="제외";
 
-    saveButton.disabled = true;
-    meaningInput.placeholder = "뜻을 가져오는 중...";
+    div.append(title,meaning,save,remove);
+    area.appendChild(div);
 
-    translate(word).then(meaning => {
-      meaningInput.value = meaning;
-      meaningInput.placeholder = "한국어 뜻을 입력하세요";
-      saveButton.disabled = false;
+    translateWord(word).then(value=>{
+      meaning.value=value;
+      meaning.placeholder="한국어 뜻을 입력하세요";
     });
 
-    saveButton.onclick = () => {
-      saveWord(word, meaningInput.value);
+    save.onclick=()=>{
+      saveWord(word,meaning.value);
       div.remove();
     };
 
-    removeButton.onclick = () => {
-      div.remove();
-    };
-
-    area.appendChild(div);
+    remove.onclick=()=>div.remove();
   }
 }
 
 // 단어 저장
-function saveWord(word, meaning) {
-  const cleanWord = word.trim().toLowerCase();
+function saveWord(word,meaning){
+  word=word.trim().toLowerCase();
+  if(!word)return;
 
-  if (!cleanWord) return;
+  const old=vocabulary.find(v=>v.word===word);
 
-  const existing = saved.find(w => w.word === cleanWord);
-
-  if (existing) {
-    existing.meaning = meaning;
-  } else {
-    saved.push({
-      word: cleanWord,
-      meaning: meaning
-    });
+  if(old){
+    old.meaning=meaning;
+  }else{
+    vocabulary.push({word,meaning});
   }
 
-  localStorage.setItem("myVocabulary", JSON.stringify(saved));
-
-  renderSaved();
+  saveData();
 }
 
-// 저장된 단어 표시
-function renderSaved() {
-  const area = document.getElementById("savedWords");
+// 직접 단어 추가
+function addManual(){
+  const word=document.getElementById("manualWord").value.trim();
+  const meaning=document.getElementById("manualMeaning").value.trim();
 
-  document.getElementById("count").textContent =
-    "저장된 단어 " + saved.length + "개";
+  if(!word){
+    alert("영어 단어를 입력해 주세요.");
+    return;
+  }
 
-  area.innerHTML = "";
+  saveWord(word,meaning);
 
-  saved.forEach((item, index) => {
-    const div = document.createElement("div");
-    div.className = "word";
+  document.getElementById("manualWord").value="";
+  document.getElementById("manualMeaning").value="";
+}
 
-    const title = document.createElement("strong");
-    title.textContent = item.word;
+// 저장 및 화면 갱신
+function saveData(){
+  localStorage.setItem("vocabNote",JSON.stringify(vocabulary));
+  renderWords();
+  showCard();
+}
 
-    const meaning = document.createElement("input");
-    meaning.type = "text";
-    meaning.value = item.meaning || "";
-    meaning.placeholder = "뜻을 입력하세요";
+// 단어장 표시
+function renderWords(){
+  const area=document.getElementById("savedWords");
+  area.innerHTML="";
 
-    const saveButton = document.createElement("button");
-    saveButton.textContent = "뜻 수정 저장";
-    saveButton.onclick = () => {
-      saved[index].meaning = meaning.value;
-      localStorage.setItem("myVocabulary", JSON.stringify(saved));
-      renderSaved();
+  document.getElementById("count").textContent=
+    "저장된 단어 "+vocabulary.length+"개";
+
+  vocabulary.forEach((item,index)=>{
+    const div=document.createElement("div");
+    div.className="word";
+
+    const title=document.createElement("strong");
+    title.textContent=item.word;
+
+    const meaning=document.createElement("input");
+    meaning.value=item.meaning||"";
+    meaning.placeholder="한국어 뜻";
+
+    const save=document.createElement("button");
+    save.textContent="뜻 수정 저장";
+    save.onclick=()=>{
+      vocabulary[index].meaning=meaning.value;
+      saveData();
     };
 
-    const deleteButton = document.createElement("button");
-    deleteButton.textContent = "삭제";
-    deleteButton.onclick = () => {
-      saved.splice(index, 1);
-      localStorage.setItem("myVocabulary", JSON.stringify(saved));
-      renderSaved();
+    const del=document.createElement("button");
+    del.textContent="삭제";
+    del.onclick=()=>{
+      vocabulary.splice(index,1);
+      saveData();
     };
 
-    div.appendChild(title);
-    div.appendChild(meaning);
-    div.appendChild(saveButton);
-    div.appendChild(deleteButton);
-
+    div.append(title,meaning,save,del);
     area.appendChild(div);
   });
 }
 
-// 단어장 암기
-function showFlashcard() {
-  if (saved.length === 0) {
-    alert("먼저 단어를 저장해 주세요.");
+// 단어 시험 카드
+function showCard(){
+  if(vocabulary.length===0){
+    document.getElementById("cardWord").textContent="단어를 저장해 주세요.";
+    document.getElementById("cardMeaning").textContent="";
+    document.getElementById("cardNumber").textContent="";
     return;
   }
 
-  cardIndex = 0;
+  if(cardIndex>=vocabulary.length)cardIndex=0;
 
-  document.getElementById("studyBox").classList.remove("hidden");
+  document.getElementById("cardWord").textContent=
+    vocabulary[cardIndex].word;
 
-  showCard();
-
-  document.getElementById("studyBox").scrollIntoView({
-    behavior: "smooth"
-  });
+  document.getElementById("cardMeaning").textContent="";
+  document.getElementById("cardNumber").textContent=
+    (cardIndex+1)+" / "+vocabulary.length;
 }
 
-function showCard() {
-  if (saved.length === 0) return;
+function revealMeaning(){
+  if(!vocabulary.length)return;
 
-  const item = saved[cardIndex];
-
-  document.getElementById("cardNumber").textContent =
-    (cardIndex + 1) + " / " + saved.length;
-
-  document.getElementById("english").textContent = item.word;
-
-  document.getElementById("korean").textContent = "";
+  document.getElementById("cardMeaning").textContent=
+    vocabulary[cardIndex].meaning||"뜻이 없습니다.";
 }
 
-function showMeaning() {
-  if (saved.length === 0) return;
+function nextCard(){
+  if(!vocabulary.length)return;
 
-  document.getElementById("korean").textContent =
-    saved[cardIndex].meaning || "뜻이 아직 없습니다.";
-}
-
-function nextCard() {
-  if (saved.length === 0) return;
-
-  cardIndex = (cardIndex + 1) % saved.length;
+  cardIndex=(cardIndex+1)%vocabulary.length;
   showCard();
 }
 
-// 단어장 파일로 내보내기
-function exportWords() {
-  if (saved.length === 0) {
-    alert("저장된 단어가 없습니다.");
+// 단어장 내보내기
+function exportWords(){
+  if(!vocabulary.length){
+    alert("저장된 단어가 없어요.");
     return;
   }
 
-  const text = saved
-    .map(item => item.word + " : " + item.meaning)
-    .join("\n");
+  const text=vocabulary.map(v=>
+    v.word+" : "+v.meaning
+  ).join("\n");
 
-  const blob = new Blob(["\uFEFF" + text], {
-    type: "text/plain;charset=utf-8"
+  const blob=new Blob(["\uFEFF"+text],{
+    type:"text/plain;charset=utf-8"
   });
 
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "나의 영어 단어장.txt";
+  const link=document.createElement("a");
+  link.href=URL.createObjectURL(blob);
+  link.download="영어단어장.txt";
   link.click();
 
   URL.revokeObjectURL(link.href);
 }
 
-// 처음 화면 표시
-renderSaved();
+// 화면 이동
+function goTo(id){
+  document.getElementById(id).scrollIntoView({
+    behavior:"smooth"
+  });
+}
+
+renderWords();
+showCard();
 </script>
 
 </body>
