@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17264f">
 <title>VOCAB NOTE</title>
 <style>
 *{box-sizing:border-box}
@@ -28,19 +29,16 @@ nav button{flex:1;background:#edf2ff;color:#17264f;margin:2px}
 </style>
 </head>
 <body>
-
 <header>
 <h1>VOCAB NOTE</h1>
 <p>파란 동그라미 영어 단어장</p>
 </header>
-
 <main>
-
 <section class="box" id="photoSection">
 <h2>📷 시험지 사진 올리기</h2>
 <p class="small">파란색 동그라미로 표시한 영어 단어를 찾아볼게요.</p>
 <input type="file" id="photo" accept="image/*">
-<img id="preview">
+<img id="preview" alt="사진 미리보기">
 <button id="scanButton" onclick="scanPhoto()" disabled>파란 동그라미 단어 찾기</button>
 <div id="status"></div>
 <div id="results"></div>
@@ -60,7 +58,7 @@ nav button{flex:1;background:#edf2ff;color:#17264f;margin:2px}
 <button onclick="exportWords()">단어장 파일로 저장</button>
 </section>
 
-<section class="box">
+<section class="box" id="studySection">
 <h2>🧠 단어 시험</h2>
 <div class="card">
 <p id="cardNumber" class="small"></p>
@@ -70,219 +68,182 @@ nav button{flex:1;background:#edf2ff;color:#17264f;margin:2px}
 <button onclick="nextCard()">다음 단어</button>
 </div>
 </section>
-
 </main>
 
 <nav>
 <button onclick="goTo('photoSection')">사진</button>
 <button onclick="goTo('vocabSection')">단어장</button>
-<button onclick="goTo('cardWord')">시험</button>
+<button onclick="goTo('studySection')">시험</button>
 </nav>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
 <script>
 let imageFile=null;
 let vocabulary=JSON.parse(localStorage.getItem("vocabNote")||"[]");
 let cardIndex=0;
 
-const photo=document.getElementById("photo");
-
-photo.addEventListener("change",function(){
+document.getElementById("photo").addEventListener("change",function(){
   imageFile=this.files[0];
   if(!imageFile)return;
-
   const preview=document.getElementById("preview");
   preview.src=URL.createObjectURL(imageFile);
   preview.style.display="block";
-
   document.getElementById("scanButton").disabled=false;
   document.getElementById("status").textContent="사진을 준비했어요.";
 });
 
-// 파란색 판별
+// 파란색 잉크 판별
 function isBlue(r,g,b){
-  return b>45 && b-r>8 && b>=g*0.98;
+  return b>45 && b-r>8 && b-g>3;
 }
 
-// 이미지에서 파란색 픽셀 확인
-function blueAt(data,width,height,x,y){
-  x=Math.round(x);
-  y=Math.round(y);
+// 파란색 픽셀을 연결된 덩어리로 찾아 동그라미 후보를 만듭니다.
+function findBlueWords(ctx, words){
+  const canvas=ctx.canvas;
+  const W=canvas.width, H=canvas.height;
+  const data=ctx.getImageData(0,0,W,H).data;
+  const total=W*H;
+  const visited=new Uint8Array(total);
+  const queue=new Int32Array(total);
+  const circles=[];
 
-  if(x<0||y<0||x>=width||y>=height)return false;
+  for(let start=0;start<total;start++){
+    if(visited[start])continue;
+    const si=start*4;
+    if(!isBlue(data[si],data[si+1],data[si+2])){
+      visited[start]=1;
+      continue;
+    }
 
-  const i=(y*width+x)*4;
-  return isBlue(data[i],data[i+1],data[i+2]);
-}
+    let head=0,tail=0;
+    queue[tail++]=start;
+    visited[start]=1;
 
-// 주변 픽셀까지 확인
-function nearbyBlue(data,width,height,x,y){
-  for(let dy=-2;dy<=2;dy++){
-    for(let dx=-2;dx<=2;dx++){
-      if(blueAt(data,width,height,x+dx,y+dy))return true;
+    let minX=W,minY=H,maxX=0,maxY=0,count=0;
+
+    while(head<tail){
+      const p=queue[head++];
+      const x=p%W;
+      const y=Math.floor(p/W);
+      minX=Math.min(minX,x); maxX=Math.max(maxX,x);
+      minY=Math.min(minY,y); maxY=Math.max(maxY,y);
+      count++;
+
+      for(let dy=-1;dy<=1;dy++){
+        for(let dx=-1;dx<=1;dx++){
+          if(dx===0&&dy===0)continue;
+          const nx=x+dx,ny=y+dy;
+          if(nx<0||ny<0||nx>=W||ny>=H)continue;
+          const np=ny*W+nx;
+          if(visited[np])continue;
+          visited[np]=1;
+          const ni=np*4;
+          if(isBlue(data[ni],data[ni+1],data[ni+2])){
+            queue[tail++]=np;
+          }
+        }
+      }
+    }
+
+    const bw=maxX-minX, bh=maxY-minY;
+    const ratio=bw/Math.max(1,bh);
+
+    // 너무 작거나 길쭉한 파란 흔적은 제외합니다.
+    if(count>100&&bw>25&&bh>10&&ratio>1.3&&ratio<6){
+      circles.push({x1:minX,y1:minY,x2:maxX,y2:maxY});
     }
   }
-  return false;
-}
 
-// 단어 주변 동그라미 찾기
-function findBlueWords(ctx,words){
-  const canvas=ctx.canvas;
-  const W=canvas.width;
-  const H=canvas.height;
-  const data=ctx.getImageData(0,0,W,H).data;
+  // 파란색 덩어리의 중심 영역 안에 놓인 OCR 단어를 선택합니다.
   const found=[];
-
   for(const word of words){
     const text=word.text.trim();
-
     if(!/^[a-zA-Z][a-zA-Z'-]*$/.test(text))continue;
 
     const b=word.bbox;
-    const x=(b.x0+b.x1)/2;
-    const y=(b.y0+b.y1)/2;
-    const ww=b.x1-b.x0;
-    const wh=b.y1-b.y0;
+    const cx=(b.x0+b.x1)/2;
+    const cy=(b.y0+b.y1)/2;
 
-    if(ww<8||wh<5)continue;
-
-    let matched=false;
-
-    for(const fx of [0.7,0.9,1.1,1.3,1.5,1.7]){
-      for(const fy of [1.3,1.6,1.9,2.2,2.5,2.8]){
-        const rx=ww*fx;
-        const ry=wh*fy;
-        let hits=0;
-        const quadrants=[false,false,false,false];
-
-        for(let i=0;i<120;i++){
-          const a=2*Math.PI*i/120;
-          const px=x+rx*Math.cos(a);
-          const py=y+ry*Math.sin(a);
-
-          if(nearbyBlue(data,W,H,px,py)){
-            hits++;
-
-            const right=Math.cos(a)>=0;
-            const bottom=Math.sin(a)>=0;
-            const q=bottom?(right?1:2):(right?0:3);
-            quadrants[q]=true;
-          }
-        }
-
-        const covered=quadrants.filter(Boolean).length;
-
-        if(hits>=8&&covered>=3){
-          matched=true;
-          break;
-        }
+    for(const circle of circles){
+      const margin=3;
+      if(cx>=circle.x1-margin&&cx<=circle.x2+margin&&
+         cy>=circle.y1-margin&&cy<=circle.y2+margin){
+        found.push(text);
+        break;
       }
-      if(matched)break;
     }
-
-    if(matched)found.push(text);
   }
-
   return [...new Set(found)];
 }
 
-// 사진 글자 인식
 async function scanPhoto(){
   if(!imageFile)return;
-
   const button=document.getElementById("scanButton");
   const status=document.getElementById("status");
-
   button.disabled=true;
   status.textContent="사진을 읽고 있어요. 잠시 기다려 주세요.";
 
   try{
     const img=new Image();
     img.src=URL.createObjectURL(imageFile);
-
     await new Promise((resolve,reject)=>{
       img.onload=resolve;
       img.onerror=reject;
     });
 
-    const scale=Math.min(1,2200/img.width);
+    const scale=Math.min(1,1800/img.width);
     const canvas=document.createElement("canvas");
-
     canvas.width=Math.round(img.width*scale);
     canvas.height=Math.round(img.height*scale);
-
     const ctx=canvas.getContext("2d",{willReadFrequently:true});
     ctx.drawImage(img,0,0,canvas.width,canvas.height);
 
     status.textContent="영어 글자를 인식하고 있어요.";
-
     const worker=await Tesseract.createWorker("eng");
     const result=await worker.recognize(canvas);
     await worker.terminate();
 
     status.textContent="파란색 동그라미를 찾고 있어요.";
-
     const words=result.data.words.filter(w=>
       /^[a-zA-Z][a-zA-Z'-]*$/.test(w.text.trim())
     );
-
     const found=findBlueWords(ctx,words);
 
-    if(found.length===0){
-      status.textContent=
-        "동그라미 단어를 자동으로 찾지 못했어요.\n"+
-        "아래에서 단어를 직접 추가할 수 있어요.";
-    }else{
-      status.textContent=found.length+"개 단어를 찾았어요.";
-    }
-
+    status.textContent=found.length
+      ? found.length+"개 단어를 찾았어요."
+      : "동그라미 단어를 자동으로 찾지 못했어요.\n아래에서 단어를 직접 추가할 수 있어요.";
     await displayCandidates(found);
-
   }catch(e){
     console.error(e);
     status.textContent="오류가 발생했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.";
   }
-
   button.disabled=false;
 }
 
-// 무료 번역
 async function translateWord(word){
   try{
     const url="https://api.mymemory.translated.net/get?q="+
       encodeURIComponent(word)+"&langpair=en|ko";
-
     const response=await fetch(url);
     const data=await response.json();
-
     return data.responseData.translatedText||"";
-  }catch(e){
-    return "";
-  }
+  }catch(e){return "";}
 }
 
-// 찾은 단어 표시
 async function displayCandidates(words){
   const area=document.getElementById("results");
   area.innerHTML="";
-
   for(const word of words){
     const div=document.createElement("div");
     div.className="word";
-
     const title=document.createElement("strong");
     title.textContent=word;
-
     const meaning=document.createElement("input");
     meaning.placeholder="한국어 뜻 가져오는 중...";
-
     const save=document.createElement("button");
     save.textContent="단어장에 저장";
-
     const remove=document.createElement("button");
     remove.textContent="제외";
-
     div.append(title,meaning,save,remove);
     area.appendChild(div);
 
@@ -290,94 +251,66 @@ async function displayCandidates(words){
       meaning.value=value;
       meaning.placeholder="한국어 뜻을 입력하세요";
     });
-
-    save.onclick=()=>{
-      saveWord(word,meaning.value);
-      div.remove();
-    };
-
+    save.onclick=()=>{saveWord(word,meaning.value);div.remove();};
     remove.onclick=()=>div.remove();
   }
 }
 
-// 단어 저장
 function saveWord(word,meaning){
   word=word.trim().toLowerCase();
   if(!word)return;
-
   const old=vocabulary.find(v=>v.word===word);
-
-  if(old){
-    old.meaning=meaning;
-  }else{
-    vocabulary.push({word,meaning});
-  }
-
+  if(old)old.meaning=meaning;
+  else vocabulary.push({word,meaning});
   saveData();
 }
 
-// 직접 단어 추가
 function addManual(){
   const word=document.getElementById("manualWord").value.trim();
   const meaning=document.getElementById("manualMeaning").value.trim();
-
-  if(!word){
-    alert("영어 단어를 입력해 주세요.");
-    return;
-  }
-
+  if(!word){alert("영어 단어를 입력해 주세요.");return;}
   saveWord(word,meaning);
-
   document.getElementById("manualWord").value="";
   document.getElementById("manualMeaning").value="";
 }
 
-// 저장 및 화면 갱신
 function saveData(){
   localStorage.setItem("vocabNote",JSON.stringify(vocabulary));
   renderWords();
   showCard();
 }
 
-// 단어장 표시
 function renderWords(){
   const area=document.getElementById("savedWords");
   area.innerHTML="";
-
-  document.getElementById("count").textContent=
-    "저장된 단어 "+vocabulary.length+"개";
+  document.getElementById("count").textContent="저장된 단어 "+vocabulary.length+"개";
 
   vocabulary.forEach((item,index)=>{
     const div=document.createElement("div");
     div.className="word";
-
     const title=document.createElement("strong");
     title.textContent=item.word;
-
     const meaning=document.createElement("input");
     meaning.value=item.meaning||"";
     meaning.placeholder="한국어 뜻";
-
     const save=document.createElement("button");
     save.textContent="뜻 수정 저장";
     save.onclick=()=>{
       vocabulary[index].meaning=meaning.value;
       saveData();
     };
-
     const del=document.createElement("button");
     del.textContent="삭제";
     del.onclick=()=>{
       vocabulary.splice(index,1);
+      if(cardIndex>=vocabulary.length)cardIndex=0;
       saveData();
     };
-
     div.append(title,meaning,save,del);
     area.appendChild(div);
   });
 }
 
-// 단어 시험 카드
 function showCard(){
   if(vocabulary.length===0){
     document.getElementById("cardWord").textContent="단어를 저장해 주세요.";
@@ -385,64 +318,41 @@ function showCard(){
     document.getElementById("cardNumber").textContent="";
     return;
   }
-
   if(cardIndex>=vocabulary.length)cardIndex=0;
-
-  document.getElementById("cardWord").textContent=
-    vocabulary[cardIndex].word;
-
+  document.getElementById("cardWord").textContent=vocabulary[cardIndex].word;
   document.getElementById("cardMeaning").textContent="";
-  document.getElementById("cardNumber").textContent=
-    (cardIndex+1)+" / "+vocabulary.length;
+  document.getElementById("cardNumber").textContent=(cardIndex+1)+" / "+vocabulary.length;
 }
 
 function revealMeaning(){
   if(!vocabulary.length)return;
-
   document.getElementById("cardMeaning").textContent=
     vocabulary[cardIndex].meaning||"뜻이 없습니다.";
 }
 
 function nextCard(){
   if(!vocabulary.length)return;
-
   cardIndex=(cardIndex+1)%vocabulary.length;
   showCard();
 }
 
-// 단어장 내보내기
 function exportWords(){
-  if(!vocabulary.length){
-    alert("저장된 단어가 없어요.");
-    return;
-  }
-
-  const text=vocabulary.map(v=>
-    v.word+" : "+v.meaning
-  ).join("\n");
-
-  const blob=new Blob(["\uFEFF"+text],{
-    type:"text/plain;charset=utf-8"
-  });
-
+  if(!vocabulary.length){alert("저장된 단어가 없어요.");return;}
+  const text=vocabulary.map(v=>v.word+" : "+v.meaning).join("\n");
+  const blob=new Blob(["\uFEFF"+text],{type:"text/plain;charset=utf-8"});
   const link=document.createElement("a");
   link.href=URL.createObjectURL(blob);
   link.download="영어단어장.txt";
   link.click();
-
   URL.revokeObjectURL(link.href);
 }
 
-// 화면 이동
 function goTo(id){
-  document.getElementById(id).scrollIntoView({
-    behavior:"smooth"
-  });
+  document.getElementById(id).scrollIntoView({behavior:"smooth"});
 }
 
 renderWords();
 showCard();
 </script>
-
 </body>
 </html>
