@@ -1,269 +1,85 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#172554">
-<title>VOCAB NOTE</title>
-<link rel="manifest" href="manifest.webmanifest">
-<style>
-*{box-sizing:border-box}
-body{margin:0;background:#f4f6fb;color:#172033;font-family:Arial,sans-serif}
-header{background:#172554;color:white;padding:22px}
-h1{margin:0;font-size:24px}
-header p{font-size:13px;color:#cbd5e1}
-main{padding:14px;max-width:650px;margin:auto;padding-bottom:90px}
-.card{background:white;border-radius:16px;padding:16px;margin-bottom:13px;box-shadow:0 3px 12px #00000008}
-button{border:0;border-radius:10px;padding:12px;font-weight:bold;background:#2563eb;color:white;cursor:pointer}
-input{padding:11px;border:1px solid #ddd;border-radius:9px;width:100%;margin:5px 0}
-nav{position:fixed;bottom:0;background:white;width:100%;display:flex;justify-content:space-around;padding:10px;border-top:1px solid #ddd}
-nav button{background:#eff6ff;color:#172554;flex:1;margin:3px}
-.page{display:none}.page.active{display:block}
-.word{background:white;padding:12px;border:1px solid #ddd;border-radius:12px;margin:10px 0}
-.word strong{font-size:19px}
-.muted{font-size:13px;color:#64748b;line-height:1.6}
-#preview{width:100%;max-height:350px;object-fit:contain;margin-top:10px}
-</style>
-</head>
-<body>
-<header>
-<h1>VOCAB NOTE</h1>
-<p>파란 동그라미 영어 단어장</p>
-</header>
-
-<main>
-<section id="home" class="page active">
-<div class="card">
-<h2>내 단어장</h2>
-<h1 id="total">0</h1>
-<p class="muted">저장된 영어 단어</p>
-<button onclick="show('upload')">모의고사 사진 추가</button>
-</div>
-<div class="card">
-<h3>사용 방법</h3>
-<p class="muted">모의고사 사진을 올리면 파란색으로 표시된 단어를 찾아 단어장에 저장합니다. 검정색 표시는 제외하도록 분석합니다.</p>
-</div>
-</section>
-
-<section id="upload" class="page">
-<div class="card">
-<h2>사진 올리기</h2>
-<input type="file" id="photo" accept="image/*">
-<img id="preview">
-<button onclick="scan()">파란 동그라미 단어 찾기</button>
-<p id="status" class="muted"></p>
-<div id="results"></div>
-</div>
-</section>
-
-<section id="vocab" class="page">
-<div class="card">
-<h2>내 단어장</h2>
-<div id="list"></div>
-</div>
-</section>
-
-<section id="quiz" class="page">
-<div class="card">
-<h2>단어 시험</h2>
-<div id="question"></div>
-</div>
-</section>
-</main>
-
-<nav>
-<button onclick="show('home')">홈</button>
-<button onclick="show('upload')">사진</button>
-<button onclick="show('vocab')">단어장</button>
-<button onclick="show('quiz')">시험</button>
-</nav>
-
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script>
-let words=JSON.parse(localStorage.getItem("vocabWords")||"[]");
-let candidates=[];
-let imageURL="";
-
-function save(){
- localStorage.setItem("vocabWords",JSON.stringify(words));
- render();
-}
-
-function show(id){
- document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
- document.getElementById(id).classList.add("active");
- render();
- if(id==="quiz")quiz();
-}
-
-function render(){
- document.getElementById("total").textContent=words.length;
- document.getElementById("list").innerHTML=words.map((w,i)=>`
- <div class="word">
- <strong>${escapeHTML(w.word)}</strong>
- <p>${escapeHTML(w.meaning||"뜻 미입력")}</p>
- <button onclick="words.splice(${i},1);save()">삭제</button>
- </div>`).join("");
-}
-
-function escapeHTML(s){
- return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-}
-
-document.getElementById("photo").onchange=function(e){
- let f=e.target.files[0];
- if(!f)return;
- imageURL=URL.createObjectURL(f);
- document.getElementById("preview").src=imageURL;
-};
-
-function blue(r,g,b){
- return b>65 && b>r*1.22 && b>g*1.04 && g>r*1.02 && b-r>35;
-}
-
-/* 파란색 픽셀 덩어리와 OCR 단어 위치를 비교 */
 function findBlueWords(ctx,ocrWords){
- let canvas=ctx.canvas;
- let W=canvas.width,H=canvas.height;
- let scale=Math.min(1,850/W);
- let sw=Math.round(W*scale),sh=Math.round(H*scale);
- let c=document.createElement("canvas");
- c.width=sw;c.height=sh;
- let cc=c.getContext("2d",{willReadFrequently:true});
- cc.drawImage(canvas,0,0,sw,sh);
- let d=cc.getImageData(0,0,sw,sh).data;
- let mask=new Uint8Array(sw*sh);
- let seen=new Uint8Array(sw*sh);
 
- for(let i=0;i<mask.length;i++){
-  let p=i*4;
-  if(blue(d[p],d[p+1],d[p+2]))mask[i]=1;
+ const c=ctx.canvas;
+ const W=c.width,H=c.height;
+ const data=ctx.getImageData(0,0,W,H).data;
+
+ function blueAt(x,y){
+  x=Math.round(x);
+  y=Math.round(y);
+
+  if(x<0||y<0||x>=W||y>=H)return false;
+
+  const i=(y*W+x)*4;
+  const r=data[i],g=data[i+1],b=data[i+2];
+
+  return b>65 && b>r*1.18 && b>g*1.02 && b-r>28;
  }
 
- let comps=[];
- for(let i=0;i<mask.length;i++){
-  if(!mask[i]||seen[i])continue;
-  let stack=[i],minx=sw,miny=sh,maxx=0,maxy=0,count=0;
-  seen[i]=1;
-  while(stack.length){
-   let v=stack.pop(),x=v%sw,y=Math.floor(v/sw);
-   count++;
-   minx=Math.min(minx,x);maxx=Math.max(maxx,x);
-   miny=Math.min(miny,y);maxy=Math.max(maxy,y);
-   for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-    if(!dx&&!dy)continue;
-    let nx=x+dx,ny=y+dy;
-    if(nx<0||ny<0||nx>=sw||ny>=sh)continue;
-    let n=ny*sw+nx;
-    if(mask[n]&&!seen[n]){seen[n]=1;stack.push(n)}
+ function nearbyBlue(x,y){
+  for(let dy=-2;dy<=2;dy++){
+   for(let dx=-2;dx<=2;dx++){
+    if(blueAt(x+dx,y+dy))return true;
    }
   }
-  let bw=maxx-minx+1,bh=maxy-miny+1;
-  if(count>18&&bw>15&&bh>12){
-   comps.push({minx,miny,maxx,maxy,bw,bh});
-  }
+  return false;
  }
 
  let result=[];
- for(let w of ocrWords){
-  let b=w.bbox;
-  let x=(b.x0+b.x1)/2*scale;
-  let y=(b.y0+b.y1)/2*scale;
-  let ww=(b.x1-b.x0)*scale;
-  let wh=(b.y1-b.y0)*scale;
-  for(let c of comps){
-   let ar=c.bw/c.bh;
-   if(ar<0.35||ar>2.8)continue;
-   if(x<c.minx+c.bw*.12||x>c.maxx-c.bw*.12)continue;
-   if(y<c.miny+c.bh*.12||y>c.maxy-c.bh*.12)continue;
-   if(c.bw<ww||c.bh<wh*1.1)continue;
-   if(c.bw>ww*6||c.bh>wh*6)continue;
-   result.push(w.text.trim());
-   break;
+
+ for(const word of ocrWords){
+
+  const b=word.bbox;
+
+  const x=(b.x0+b.x1)/2;
+  const y=(b.y0+b.y1)/2;
+
+  const ww=b.x1-b.x0;
+  const wh=b.y1-b.y0;
+
+  if(ww<8||wh<5)continue;
+
+  let best=0;
+
+  // 글자 주변에 다양한 크기의 타원형 표시가 있는지 확인
+  for(const fx of [0.65,0.85,1.05,1.25]){
+   for(const fy of [1.0,1.3,1.6,1.9]){
+
+    const rx=ww*fx;
+    const ry=wh*fy;
+
+    let sectors=Array(8).fill(0);
+    let total=0;
+
+    for(let i=0;i<120;i++){
+
+     const a=2*Math.PI*i/120;
+     const px=x+rx*Math.cos(a);
+     const py=y+ry*Math.sin(a);
+
+     if(nearbyBlue(px,py)){
+      const s=Math.floor(i/15);
+      sectors[s]++;
+      total++;
+     }
+    }
+
+    const occupied=sectors.filter(v=>v>0).length;
+
+    // 위쪽과 아래쪽 표시도 확인하여 밑줄 오인식을 줄임
+    const top=sectors[0]+sectors[1]+sectors[7]>0;
+    const bottom=sectors[3]+sectors[4]+sectors[5]>0;
+
+    if(occupied>=3 && top && bottom){
+     best=Math.max(best,occupied/8);
+    }
+   }
+  }
+
+  if(best>0){
+   result.push(word.text.trim());
   }
  }
+
  return [...new Set(result)];
 }
-
-async function scan(){
- if(!imageURL){alert("먼저 사진을 올려 주세요.");return}
- if(!window.Tesseract){alert("OCR을 불러오지 못했어요. 인터넷을 확인해 주세요.");return}
- let status=document.getElementById("status");
- status.textContent="사진 분석 중입니다. 잠시 기다려 주세요.";
- try{
-  let im=new Image();
-  im.src=imageURL;
-  await im.decode();
-  let scale=Math.min(1,1800/im.width);
-  let c=document.createElement("canvas");
-  c.width=Math.round(im.width*scale);
-  c.height=Math.round(im.height*scale);
-  let ctx=c.getContext("2d",{willReadFrequently:true});
-  ctx.drawImage(im,0,0,c.width,c.height);
-
-  let worker=await Tesseract.createWorker("eng");
-  let result=await worker.recognize(c);
-  await worker.terminate();
-
-  candidates=findBlueWords(ctx,result.data.words||[]);
-  candidates=candidates.filter(x=>/[a-zA-Z]{2,}/.test(x));
-  status.textContent="파란색 표시 후보 "+candidates.length+"개를 찾았습니다. 아래에서 확인해 주세요.";
-  showCandidates();
- }catch(e){
-  status.textContent="분석 오류: "+e.message;
- }
-}
-
-async function translate(word){
- try{
-  let url="https://api.mymemory.translated.net/get?q="+encodeURIComponent(word)+"&langpair=en|ko";
-  let r=await fetch(url);
-  let j=await r.json();
-  return j.responseData.translatedText||"";
- }catch(e){return ""}
-}
-
-async function showCandidates(){
- let box=document.getElementById("results");
- box.innerHTML="";
- for(let i=0;i<candidates.length;i++){
-  let word=candidates[i];
-  let meaning=await translate(word);
-  let div=document.createElement("div");
-  div.className="word";
-  div.innerHTML=`<strong>${escapeHTML(word)}</strong>
-  <input id="meaning${i}" value="${escapeHTML(meaning)}" placeholder="한국어 뜻">
-  <button onclick="addWord(${i})">단어장에 저장</button>
-  <button onclick="this.parentElement.remove()">제외</button>`;
-  box.appendChild(div);
- }
-}
-
-function addWord(i){
- let meaning=document.getElementById("meaning"+i)?.value||"";
- let word=candidates[i];
- if(!words.some(x=>x.word.toLowerCase()===word.toLowerCase())){
-  words.push({word,meaning});
-  save();
- }
- alert(word+" 저장 완료!");
-}
-
-let qi=0;
-function quiz(){
- let box=document.getElementById("question");
- if(!words.length){box.textContent="단어를 먼저 추가해 주세요.";return}
- if(qi>=words.length)qi=0;
- let w=words[qi];
- box.innerHTML=`<h1>${escapeHTML(w.word)}</h1>
- <button onclick="document.getElementById('answer').textContent='${escapeHTML(w.meaning)}'">뜻 확인</button>
- <p id="answer"></p>
- <button onclick="qi++;quiz()">다음 단어</button>`;
-}
-render();
-if("serviceWorker" in navigator && location.protocol.startsWith("http")){
- navigator.serviceWorker.register("./sw.js").catch(()=>{});
-}
-</script>
-</body>
-</html>
